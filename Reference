@@ -1,0 +1,265 @@
+####################################### New Caddyfile v0.10.x #################################################################
+
+# Notes: (Last edit: 5/4/18)
+
+#	Old caddyfile v0.9.x: (Deprecated but has a lot more notes and setup information if needed!)
+#		https://pastebin.com/sFUdPFvM
+
+#	Some code for people who don't want to serve any sites from root domain
+#	The redir will send people to google.com when they try to reach yourdomain.com
+#	Code Source: http://bit.ly/2sVL78h
+
+  redir 301 {
+	if {path} is /				# Only redirect if the request is for the webroot
+	/ https://www.google.com	# Replace with wherever you like
+  }
+
+#	If you're planning on using subdomains instead of subfolders for your apps then don't use a "common.conf" file since
+#	all the relevant code should go in the server block instead of being pulled in through the import of another file!
+
+#   Code for cloudflare dns: **Cloudflare caddy plugin and Environment variables are required**
+
+# Environment Variables:
+
+#   CLOUDFLARE_EMAIL xxxxxxxxxxxxxx
+#	CLOUDFLARE_API_KEY xxxxxxxxxxxxxx
+
+# Code:
+
+#	tls {
+#    dns cloudflare
+#	}
+
+#	In caddy v0.10.10 "startup" is deprecated and the new "on" directive will take it's place
+
+#   	The link below has more info on how to use the new "on" syntax needed for startup
+#   	https://caddyserver.com/docs/on
+
+#   	With Windows it might be better to use: on startup "\"C:\caddy\php\php-cgi.exe\" -b 127.0.0.1:9000" &
+
+# 	Rewrite code needed for Ombi V3. There might be a better way to do the rewrite but for now this seems to work
+#	Add before the proxy block for Ombi:
+
+#			rewrite {
+#				r ^/dist
+#		  		to /ombi/{uri}
+#			}
+
+#	Caddy introduced Snippets to v0.10.11 to help make reusing code simpler (https://caddyserver.com/blog/caddy-0_10_11-released)
+#	This will eliminate needing a separate "common.conf" file but your free to keep using it if you prefer!
+
+#	You would define a site block with parentheses around the name (e.g.)
+
+#   	(mysnippet) {
+#			gzip
+#			header.....
+#			proxy.......
+#		}
+
+#	Updated Tautulli(formerly PlexPy) Github address & set keepalive to 0 to help with the slow loading issues i was experiencing
+
+
+#	Change all path "syntax" & "locations" to match your OS! e.g. "c:\caddy\www" for Windows or "/var/www" for nix file systems
+################################################## Code starts below ##########################################################
+
+####################################################################################
+# Snippets
+####################################################################################
+
+####### Snippet 1 #######
+
+(mycommon) {
+  ext .html .htm .php
+  root /caddy/www           # Change path & syntax for your OS or your preferred location!
+  gzip
+
+  header / {
+    X-Content-Type-Options nosniff
+    X-XSS-Protection "1; mode=block"
+    Strict-Transport-Security "max-age=31536000;"
+  }
+}
+
+####### Snippet 2 #######
+
+(mylocations) {
+
+  # You can normally use "127.0.0.1", use the appropriate "IP address" if your running the web server/apps on different machines
+
+  proxy /sabnzb 127.0.0.1:8080 {          # https://sabnzbd.org/
+      transparent
+  }
+
+  proxy /htpc 127.0.0.1:8085 {            # http://htpc.io/
+      transparent
+  }
+
+  proxy /headphones 127.0.0.1:8181 {      # https://github.com/rembo10/headphones
+      transparent
+  }
+
+  proxy /mylar 127.0.0.1:8090 {           # https://github.com/evilhero/mylar
+      transparent
+  }
+
+  proxy /lazy 127.0.0.1:5299 {            # https://github.com/DobyTang/LazyLibrarian
+      transparent
+  }
+
+  proxy /emby 127.0.0.1:8096 {            # https://emby.media/
+      transparent
+  }
+
+  proxy /sonarr 127.0.0.1:8989 {          # https://sonarr.tv/
+      transparent
+  }
+
+  # Headphones uses port 8181 so make sure there's no conflict!
+
+  proxy /tautulli 127.0.0.1:8181 {        # https://github.com/Tautulli/Tautulli
+      header_upstream X-Forwarded-Host {host}
+      transparent
+	  keepalive 0
+  }
+
+  proxy /nzbget 127.0.0.1:6789 {          # http://nzbget.net/
+      transparent
+  }
+
+  proxy /couch 127.0.0.1:5050 {           # https://couchpota.to/
+      transparent
+  }
+
+  proxy /nzbhydra 127.0.0.1:5075 {        # https://github.com/theotherp/nzbhydra
+      transparent
+  }
+
+  # New rewrite rule needed to load some of Ombi V3's assets
+
+  rewrite {
+      r ^/dist
+      to /ombi/{uri}
+  }
+
+  proxy /ombi 127.0.0.1:3579 {            # https://github.com/tidusjar/Ombi
+      transparent
+  }
+
+  # The rewrite makes sure all of glances sub directory calls are proxied from domain to host
+
+  rewrite {
+      if {>Referer} has /glances
+      to /glances/{path}
+  }
+
+  # The code below gives you a tiny level of security requiring a username/password before Caddy will let you connect to it
+
+  basicauth /glances Username Password
+
+  proxy /glances 127.0.0.1:61208 {        # https://github.com/nicolargo/glances
+      without /glances
+      transparent
+  }
+
+  proxy /deluge 127.0.0.1:8112 {          # http://deluge-torrent.org/
+      without /deluge
+      transparent
+      header_upstream X-Deluge-Base "/deluge"
+  }
+
+  proxy /watcher 127.0.0.1:9090 {         # https://github.com/nosmokingbandit/Watcher3
+      transparent
+  }
+
+  proxy /radarr 127.0.0.1:7878 {          # https://github.com/Radarr/Radarr
+      transparent
+  }
+
+  # The code below will proxy PHP requests
+
+  fastcgi / 127.0.0.1:9000 php
+}
+
+####################################################################################
+# web domain server block
+####################################################################################
+
+domain.com {
+
+  tls yourname@email.com        # Email for Let's Encrypt Verification
+
+  # New log directive syntax for v0.10.x
+  log /caddy/logs/access.log {                          # Change path syntax for your OS or your preferred location!
+    rotate_size 1          # Rotate after 1 MB
+    rotate_age  7          # Keep log files for 7 days
+    rotate_keep 2          # Keep at most 2 log files
+  }
+
+  errors /caddy/logs/error.log {                        # Change path syntax for your OS or your preferred location!
+    rotate_size 1          # Set max size 1 MB
+    rotate_age  7          # Keep log files for 7 days
+    rotate_keep 2          # Keep at most 2 log files
+  }
+
+  on startup /caddy/php/php-cgi -b 127.0.0.1:9000 -c /caddy/php/php.ini &		#  Change path/s to your PHP folder location
+
+  import mycommon	 	   # Import code snippet 1 defined above
+  import mylocations  	   # Import code snippet 2 defined above
+
+}
+
+####################################################################################
+# localhost or Machine server block
+####################################################################################
+
+http://localhost http://192.168.1.x http://10.0.1.x {
+
+  import mycommon	 	   # Import code snippet 1 defined above
+  import mylocations  	   # Import code snippet 2 defined above
+
+}
+
+####################################################################################
+# Plex subdomain code block
+####################################################################################
+
+plex.yourdomain.com {
+
+  gzip
+
+  # Separate log file for Plex server
+
+  log /caddy/logs/plexaccess.log {
+    rotate_size 1          # Rotate after 1 MB
+    rotate_age  7          # Keep log files for 7 days
+    rotate_keep 2          # Keep at most 2 log files
+  }
+
+  errors /caddy/logs/plexerror.log {
+    rotate_size 1          # Set max size 1 MB
+    rotate_age  7          # Keep log files for 7 days
+    rotate_keep 2          # Keep at most 2 log files
+  }
+
+  proxy / 127.0.0.1:32400 {
+    transparent
+  }
+
+}
+
+####################################################################################
+# Sonarr subdomain code block example
+####################################################################################
+
+# Remember to disable/remove the base url settings from within the app! Else "/sonarr" will be appended to the domain and will
+# defeat the purpose of using a subdomain.  (e.g. sonarr.domain.com will become "sonarr.domain.com/sonarr")
+
+sonarr.yourdomain.com {
+
+  gzip
+
+  proxy / 127.0.0.1:8989 {
+    transparent
+  }
+
+}
