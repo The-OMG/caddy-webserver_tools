@@ -1,25 +1,44 @@
-my.gdrive.od:443 {
-     proxy / localhost:10000 localhost:10001 localhost:20028 {
-        policy round_robin
-        transparent
-        health_check /
-    }
-    # Access Logs
-    log $HOME/logs/access-cloud.log
+################################################################################
+####################################Snippets####################################
+################################################################################
 
-    # Error Logs
-    errors $HOME/logs/error-cloud.log
-
-    # Enable gzip
-    gzip {
-        level 5
-    }
+  (_mycommon) {
+    ext.html.htm.php
+    gzip
 
     # Set security headers / custom headers
     header / {
-        Server "Caddy Server"
+      X-Content-Type-Options nosniff
+      X-XSS-Protection "1; mode=block"
+      Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     }
+  }
 
-    # TLS
-    tls self_signed
+################################################################################
+
+cartoons.orionsbelt.space: 8443 {
+  proxy / localhost:10000 localhost:10001 localhost:10002 localhost:10003 localhost:10004 localhost:10005 localhost:10006 localhost:10007 localhost:10008 localhost:10009 localhost:10010 localhost:10011 localhost:10012 {
+    policy round_robin
+    transparent
+    health_check /
+  }
+
+  #  TLS
+  tls self_signed
+
+  #  Access Logs
+  log $HOME/logs/access-RcloneHydra.log {
+    rotate_size 5  # Rotate after 5 MB
+    rotate_age 7   # Keep log files for 7 days
+    rotate_keep 2  # Keep at most 2 log files
+  }
+
+  #  Error Logs
+  errors $HOME/logs/error-RcloneHydra.log {
+    rotate_size 5  # Rotate after 5 MB
+    rotate_age 7   # Keep log files for 7 days
+    rotate_keep 2  # Keep at most 2 log files
+  }
+
+  import _mycommon
 }
